@@ -18,8 +18,17 @@ void FTalusModule::StartupModule()
 	if (Plugin.IsValid())
 	{
 		const FString ShaderDir = FPaths::Combine(Plugin->GetBaseDir(), TEXT("Shaders"));
-		AddShaderSourceDirectoryMapping(TEXT("/Plugin/Talus"), ShaderDir);
-		UE_LOG(LogTalus, Log, TEXT("Mapped /Plugin/Talus/ -> %s"), *ShaderDir);
+		// AddShaderSourceDirectoryMapping asserts (crashes) on a missing
+		// directory, so never call it blindly.
+		if (FPaths::DirectoryExists(ShaderDir))
+		{
+			AddShaderSourceDirectoryMapping(TEXT("/Plugin/Talus"), ShaderDir);
+			UE_LOG(LogTalus, Log, TEXT("Mapped /Plugin/Talus/ -> %s"), *ShaderDir);
+		}
+		else
+		{
+			UE_LOG(LogTalus, Warning, TEXT("Shader directory not found, skipping mapping: %s"), *ShaderDir);
+		}
 	}
 	else
 	{
