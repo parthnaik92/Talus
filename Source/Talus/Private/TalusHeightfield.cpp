@@ -31,8 +31,13 @@ void UTalusHeightfield::FillTestPattern()
 	}
 
 	const int32 Size = HeightmapSize;
-	TArray<float> Data;
-	Data.SetNumUninitialized(Size * Size);
+	const int32 NumPixels = Size * Size;
+
+	// IMPORTANT: UpdateTextureRegions hands SrcData to the render thread,
+	// which reads it asynchronously AFTER this function returns. The buffer
+	// must therefore outlive this call -- it is freed in the cleanup lambda
+	// below. (Passing a pointer to a local TArray was a use-after-free crash.)
+	float* Pixels = new float[NumPixels];
 
 	// Smooth radial cone with a gentle ripple: 1 at the center, 0 at the
 	// corners. Simple, deterministic, and visibly 3D in a terrain renderer.
@@ -49,13 +54,19 @@ void UTalusHeightfield::FillTestPattern()
 			H = H * H * (3.0f - 2.0f * H); // smoothstep
 			H += 0.05f * FMath::Sin(R * 20.0f) * H;
 
-			Data[Y * Size + X] = FMath::Clamp(H, 0.0f, 1.0f);
+			Pixels[Y * Size + X] = FMath::Clamp(H, 0.0f, 1.0f);
 		}
 	}
 
-	FUpdateTextureRegion2D Region(0, 0, 0, 0, Size, Size);
+	// Same lifetime rule applies to the region struct.
+	FUpdateTextureRegion2D* Region = new FUpdateTextureRegion2D(0, 0, 0, 0, Size, Size);
 	HeightmapTexture->UpdateTextureRegions(
-		0, 1, &Region,
+		0, 1, Region,
 		Size * sizeof(float), sizeof(float),
-		reinterpret_cast<uint8*>(Data.GetData()));
+		reinterpret_cast<uint8*>(Pixels),
+		[Region](uint8* SrcData, const FUpdateTextureRegion2D*)
+		{
+			delete[] reinterpret_cast<float*>(SrcData);
+			delete Region;
+		});
 }
