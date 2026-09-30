@@ -2,6 +2,7 @@
 
 #include "TalusTerrainActor.h"
 #include "TalusHeightfield.h"
+#include "TalusSubsystem.h"
 
 ATalusTerrainActor::ATalusTerrainActor()
 {
@@ -16,11 +17,16 @@ void ATalusTerrainActor::BeginPlay()
 
 void ATalusTerrainActor::Regenerate()
 {
-	if (!Heightfield)
+	UWorld* World = GetWorld();
+	UTalusSubsystem* Subsystem = World ? World->GetSubsystem<UTalusSubsystem>() : nullptr;
+	if (!Subsystem)
 	{
-		Heightfield = NewObject<UTalusHeightfield>(this);
+		return;
 	}
 
-	Heightfield->Initialize(HeightmapSize);
-	Heightfield->FillTestPattern();
+	// One shared heightfield per actor instance, reused across Regenerate()
+	// calls (and recreated if the size changed). The actor is just a debug
+	// helper; the subsystem owns the heightfield.
+	const FName Key(*FString::Printf(TEXT("TalusTerrainActor_%s"), *GetFName().ToString()));
+	Heightfield = Subsystem->GetOrCreateSharedHeightfield(Key, HeightmapSize);
 }

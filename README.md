@@ -18,8 +18,10 @@ No real generators yet; see [Milestones](#milestones).
 ## Milestones
 
 1. **Plugin skeleton + texture plumbing** (current) — module, `UTalusHeightfield`
-   (transient R32F texture), `ATalusTerrainActor` test actor with an analytic test
-   pattern, shader directory mapping for later `.usf` kernels.
+   (transient R32F texture), `UTalusSubsystem` (per-world manager + named
+   registry, reachable from C++ and Blueprints), `UTalusBlueprintLibrary`
+   convenience nodes, `ATalusTerrainActor` debug test actor with an analytic
+   test pattern, shader directory mapping for later `.usf` kernels.
 2. **Noise generators on GPU** — Hills, FBM, Ridged, MidPoint, Plateau as compute
    shaders (HLSL), transliterated from wgen's proven GPU kernels.
 3. **Thermal erosion on GPU** — stencil kernel, same algorithm as wgen's GPU twin.
@@ -37,6 +39,28 @@ No real generators yet; see [Milestones](#milestones).
    missing Talus module).
 4. Open the project. The Talus module loads at startup; check the Output Log for
    `LogTalus` lines.
+
+## Using Talus (no actor required)
+
+The test actor above is optional. The real API is `UTalusSubsystem`, which exists
+automatically in every world:
+
+**C++:**
+```cpp
+if (UTalusSubsystem* Talus = GetWorld()->GetSubsystem<UTalusSubsystem>())
+{
+    // Your own heightfield, ready to use:
+    UTalusHeightfield* HF = Talus->CreateHeightfield(2048);
+
+    // ...or the shared one several systems can look up by name:
+    UTalusHeightfield* Shared = Talus->GetOrCreateSharedHeightfield(TEXT("MainTerrain"), 2048);
+    UTexture2D* Tex = Shared->GetHeightmapTexture();
+}
+```
+
+**Blueprints:** the **Talus** category has `Get Talus Subsystem` and
+`Create Talus Heightfield` nodes (world-context aware) — call them from anywhere:
+level Blueprint, game mode, UI, another plugin.
 
 ## Validating milestone 1 (Shader World handoff)
 
