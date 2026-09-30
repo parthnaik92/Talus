@@ -1,0 +1,41 @@
+// TalusFbm.usf — FBM heightmap generator kernel.
+//
+// Transliteration of wgen's gpu/fbm.wgsl cell expression, sampling on wgen's
+// 512-wide virtual plane. One deviation: FBM is a pure write (not
+// map[i] + delta + ... as in wgen) because the RDG working texture starts
+// with pool garbage -- FBM is always the seeding pass. See
+// TalusNoiseCommon.ush for the noise itself (hash-based instead of wgen's
+// permutation tables).
+
+#include "/Plugin/Talus/Private/TalusNoiseCommon.ush"
+
+RWTexture2D<float> OutHeightmap;
+
+int2 MapSize;
+uint Seed;
+float XCoef; // MulX / 400
+float YCoef; // MulY / 400
+float AddX;
+float AddY;
+uint Octaves;
+float Delta;
+float Scale;
+
+[numthreads(8, 8, 1)]
+void MainCS(uint3 DispatchThreadId : SV_DispatchThreadID)
+{
+	uint2 pix = DispatchThreadId.xy;
+	if (pix.x >= MapSize.x || pix.y >= MapSize.y)
+	{
+		return;
+	}
+
+	float f0 = ((float)pix.x * 512.0 / (float)MapSize.x + AddX) * XCoef;
+	float f1 = ((float)pix.y * 512.0 / (float)MapSize.y + AddY) * YCoef;
+
+	float n = TalusFbm(float2(f0, f1), Octaves, Seed);
+
+	// Pure write: FBM is always the seeding pass. (An RDG working texture
+	// starts with pool garbage, so read-modify-write here would poison it.)
+	OutHeightmap[pix] = Delta + n * Scale;
+}

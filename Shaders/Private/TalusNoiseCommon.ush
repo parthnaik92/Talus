@@ -1,0 +1,62 @@
+// TalusNoiseCommon.ush
+//
+// Hash-based gradient noise for Talus, mirroring the structure (not the exact
+// output) of wgen's GPU noise: Perlin with (+-1,+-1) gradients, FBM with
+// persistence 0.5 and lacunarity 2*PI/3.
+//
+// wgen reproduces its CPU permutation tables on the GPU for bit-exactness with
+// its CPU path. Talus ships GPU-only and has no CPU twin to match, so a
+// self-contained integer hash replaces the tables: same terrain class,
+// decorrelated per-octave seeds, much simpler port.
+
+uint TalusHash(int2 Cell, uint Seed)
+{
+	uint h = (uint)Cell.x * 374761393u + (uint)Cell.y * 668265263u + Seed * 2246822519u;
+	h = (h ^ (h >> 13u)) * 1274126177u;
+	h ^= h >> 16u;
+	return h;
+}
+
+// Gradient (+-1,+-1) selected by h in [0,4), dotted with the corner offset,
+// scaled like wgen's grad2 (* sqrt(2)); the caller clamps to [-1,1].
+float TalusGrad(uint h, float2 d)
+{
+	float2 g = float2(((h & 1u) == 0u) ? 1.0 : -1.0,
+	                  ((h & 2u) == 0u) ? 1.0 : -1.0);
+	return dot(g, d) * 1.4142135;
+}
+
+float TalusPerlin(float2 p, uint Seed)
+{
+	float2 fl = floor(p);
+	float2 d = p - fl;
+	int2 c = (int2)fl;
+
+	float g00 = TalusGrad(TalusHash(c, Seed) & 3u, d);
+	float g10 = TalusGrad(TalusHash(c + int2(1, 0), Seed) & 3u, d - float2(1.0, 0.0));
+	float g01 = TalusGrad(TalusHash(c + int2(0, 1), Seed) & 3u, d - float2(0.0, 1.0));
+	float g11 = TalusGrad(TalusHash(c + int2(1, 1), Seed) & 3u, d - float2(1.0, 1.0));
+
+	float2 t = d * d * d * (d * (d * 6.0 - 15.0) + 10.0);
+	float r = lerp(lerp(g00, g01, t.y), lerp(g10, g11, t.y), t.x);
+	return clamp(r, -1.0, 1.0);
+}
+
+// FBM with wgen's conventions: persistence 0.5, lacunarity 2*PI/3. Each octave
+// gets a decorrelated seed (the hash equivalent of wgen's per-octave tables).
+// Normalized by the amplitude sum to roughly [-1, 1] for any octave count.
+float TalusFbm(float2 p, uint Octaves, uint Seed)
+{
+	float sum = 0.0;
+	float amp = 0.5;
+	float ampSum = 0.0;
+	float2 q = p;
+	for (uint i = 0u; i < Octaves; i++)
+	{
+		sum += TalusPerlin(q, Seed + i * 2654435769u) * amp;
+		ampSum += amp;
+		amp *= 0.5;
+		q *= 2.0943951; // 2*PI/3
+	}
+	return sum / ampSum;
+}

@@ -8,7 +8,7 @@ UTalusHeightfield* UTalusSubsystem::CreateHeightfield(int32 Size)
 {
 	UTalusHeightfield* Heightfield = NewObject<UTalusHeightfield>(this);
 	Heightfield->Initialize(Size);
-	Heightfield->FillTestPattern(); // M1 scaffolding; replaced by GPU generation in M2.
+	Heightfield->GenerateFbm(); // M2: GPU FBM noise replaces the M1 test pattern.
 	UE_LOG(LogTalus, Log, TEXT("Created heightfield %dx%d."), Heightfield->HeightmapSize, Heightfield->HeightmapSize);
 	return Heightfield;
 }

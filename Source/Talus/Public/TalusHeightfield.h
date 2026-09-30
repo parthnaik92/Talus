@@ -14,8 +14,9 @@ class UTexture2D;
  * Milestone 1: creates a transient R32F texture and can fill it with a simple
  * analytic test pattern, so the Talus -> texture -> terrain renderer
  * (e.g. Shader World) plumbing can be validated before any real generation
- * exists. Later milestones replace FillTestPattern() with GPU compute
- * generators; the texture contract stays the same.
+ * exists. Milestone 2: GPU compute generators (starting with FBM noise);
+ * the texture contract stays the same. FillTestPattern() remains as a debug
+ * utility to verify the texture path independently of the kernels.
  */
 UCLASS(BlueprintType)
 class TALUS_API UTalusHeightfield : public UObject
@@ -29,10 +30,20 @@ public:
 
 	/**
 	 * Fills the heightmap with a simple radial test pattern (values 0..1).
-	 * Temporary scaffolding for milestone 1; replaced by real generators in M2+.
+	 * Debug utility: verifies the texture path independently of the noise kernels.
 	 */
 	UFUNCTION(BlueprintCallable, Category = "Talus")
 	void FillTestPattern();
+
+	/**
+	 * Generates FBM noise into the heightfield on the GPU.
+	 * Parameters mirror wgen's FbmConf: MulX/MulY zoom the noise (higher =
+	 * smaller features), AddX/AddY slide the sample window, Octaves layers
+	 * detail, Delta offsets the base height, Scale sets the bump height.
+	 * Dispatches on the render thread; the texture updates in place.
+	 */
+	UFUNCTION(BlueprintCallable, Category = "Talus")
+	void GenerateFbm(int32 Seed = 1337, float MulX = 2.2f, float MulY = 2.2f, float AddX = 0.0f, float AddY = 0.0f, int32 Octaves = 6, float Delta = 0.0f, float Scale = 2.05f);
 
 	/**
 	 * Read-only access to the texture. Bind this into your terrain material
